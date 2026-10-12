@@ -57,7 +57,7 @@ describe('control detail adapters', () => {
   it.each([
     [{ timedOut: false }, '子智能体状态 · 检测到变化'],
     [{ timedOut: true }, '子智能体状态 · 等待超时'],
-    [{ timedOut: false, noProgress: { message: 'No pending work' } }, '没有正在运行的子智能体'],
+    [{ timedOut: false, noProgress: { message: 'No pending work' } }, '没有正在运行的团队成员'],
   ] as const)('names subagents in Chinese wait results (%j)', (value, summary) => {
     const translate = makeTranslate(zh, commonZh)
     expect(translate('tool.title.waitAgent')).toBe('等待子智能体')
