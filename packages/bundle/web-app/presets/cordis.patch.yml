@@ -87,10 +87,13 @@
             config:
               - id: tool-subagent-control
                 name: '@deepseek-ai/dsh-tool-subagent-control'
+                disabled: !!js "ctx.get('agentTeams') !== undefined"
               - id: tool-subagent-list-agents
                 name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+                disabled: !!js "ctx.get('agentTeams') !== undefined"
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
+                disabled: !!js "ctx.get('agentTeams') !== undefined"
                 config:
                   provider: spawn
                   toolName: subagent
@@ -103,6 +106,7 @@
                       - schedule_update
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
+                disabled: !!js "ctx.get('agentTeams') !== undefined"
                 config:
                   provider: fork
                   toolName: subagent_fork
