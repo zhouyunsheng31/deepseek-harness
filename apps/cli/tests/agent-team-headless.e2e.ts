@@ -117,7 +117,7 @@ describe('dsh run with Agent Teams enabled', () => {
         .map(record => (record.data as { name?: string } | undefined)?.name)
       expect(toolNames).toContain('wait_agent')
       expect(toolNames).toContain('team_task_list')
-      expect(toolNames).toContain('list_agents')
+      expect(toolNames).toContain('list_teammates')
       expect(toolNames).toContain('workflow')
       expect(root!.find(record => record.type === 'tool-workflow/run-end')?.data)
         .toMatchObject({ stopReason: 'completed' })

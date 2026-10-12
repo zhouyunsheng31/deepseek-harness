@@ -34,7 +34,7 @@ const SIGNAL = new AbortController().signal
 const TOOL_NAMES = [
   'spawn_teammate',
   'send_message',
-  'list_agents',
+  'list_teammates',
   'wait_agent',
   'interrupt_agent',
   'team_task_create',
@@ -153,14 +153,14 @@ describe('dsh-tool-team', () => {
       const spawned = await execute(ctx, lead, 'spawn_teammate', {
         name: 'reviewer', description: 'review changes', prompt: 'review',
       })
-      const listed = await execute(ctx, lead, 'list_agents', {})
+      const listed = await execute(ctx, lead, 'list_teammates', {})
       expect(spawned.isError).toBe(false)
       expect(listed.isError).toBe(false)
       expect(JSON.parse(text(spawned))).toEqual({ member: expected })
       expect(JSON.parse(text(listed))).toEqual([expected])
       const scope = scopeOf(lead.ctx)
       const spawnSchema = ctx.tools.get('spawn_teammate', scope)?.output.schema.properties?.member
-      const listSchema = ctx.tools.get('list_agents', scope)?.output.schema.items
+      const listSchema = ctx.tools.get('list_teammates', scope)?.output.schema.items
       for (const schema of [spawnSchema, listSchema]) {
         expect(schema?.properties).toHaveProperty('target')
         expect(schema?.properties).not.toHaveProperty('id')
@@ -189,7 +189,7 @@ describe('dsh-tool-team', () => {
     const child = await waitRunning(ctx, childId)
     expect(member).not.toHaveProperty('id')
     expect(member).not.toHaveProperty('name')
-    const listed = JSON.parse(text(await execute(ctx, lead, 'list_agents', {}))) as Array<{ target: string }>
+    const listed = JSON.parse(text(await execute(ctx, lead, 'list_teammates', {}))) as Array<{ target: string }>
     expect(listed.map(row => row.target)).toEqual(['lead', member.target])
     const created = await execute(ctx, lead, 'team_task_create', { subject: 'review', description: 'review changes' })
     const task = JSON.parse(text(created)) as { id: string; revision: number }
@@ -208,7 +208,7 @@ describe('dsh-tool-team', () => {
     await child.whenIdle()
     expect(child.status).toBe('idle')
     expect(ctx.agentTeams.interrupt(lead, member.target)).toEqual({ previousStatus: 'inactive' })
-    const stored = await execute(ctx, lead, 'list_agents', {})
+    const stored = await execute(ctx, lead, 'list_teammates', {})
     expect(JSON.parse(text(stored))).toContainEqual(expect.objectContaining({ target: member.target, status: 'inactive' }))
     expect(ctx.agentTeams.listMembers(lead)[1]).toMatchObject({ id: childId, name: member.target, status: 'inactive' })
   })
@@ -241,12 +241,12 @@ describe('dsh-tool-team', () => {
     expect(renderPrompt(childAssembly)).toBe(leadPrompt)
     expect(renderContextSnapshot(childAssembly)).not.toContain('team:identity')
     expect(child.session.deriveMessages().some(message => message.content.some(block =>
-      block.type === 'text' && block.text === '<system-reminder>\nYou are teammate "tool-worker".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n'))).toBe(true)
+      block.type === 'text' && block.text === '<system-reminder>\nYou are teammate "tool-worker".\nYour Team Lead is named "lead".\nUse list_teammates({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n'))).toBe(true)
     const initialPrompt = child.session.snapshotEvents().find(event => event.type === 'user/message'
       && event.data.source.kind === 'user')
     expect(initialPrompt?.type === 'user/message'
       ? initialPrompt.data.content.flatMap(block => block.type === 'text' ? [block.text] : [])
-      : []).toEqual(['<system-reminder>\nYou are teammate "tool-worker".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n', 'stay available'])
+      : []).toEqual(['<system-reminder>\nYou are teammate "tool-worker".\nYour Team Lead is named "lead".\nUse list_teammates({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n', 'stay available'])
 
     const denied = await execute(ctx, child, 'spawn_teammate', {
       name: 'nested', description: 'not allowed', prompt: 'no',
@@ -282,14 +282,14 @@ describe('dsh-tool-team', () => {
       expect(JSON.stringify(childRequest.messages)).not.toContain('Parent task')
     }
     expect(childRequest.messages.at(-1)?.content.slice(0, 2)).toEqual([
-      { type: 'text', text: '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n' },
+      { type: 'text', text: '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_teammates({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n' },
       { type: 'text', text: 'Review the work' },
     ])
     await using persisted = await ctx.sessionPersistence.open(childId, 'read')
     const { events } = await persisted.read()
     const initial = events.findLast(event => event.type === 'user/message' && event.data.source.kind === 'user')
     expect(initial?.type === 'user/message' ? initial.data.content : []).toEqual([
-      { type: 'text', text: '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n' },
+      { type: 'text', text: '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_teammates({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n' },
       { type: 'text', text: 'Review the work' },
     ])
   })
@@ -356,8 +356,8 @@ describe('dsh-tool-team', () => {
 
   it('leaves initial identity to ordinary history compaction without reinserting it', async () => {
     const { ctx, lead, adapter } = await setup([
-      toolCallResponse('first-list', 'list_agents', {}),
-      toolCallResponse('second-list', 'list_agents', {}),
+      toolCallResponse('first-list', 'list_teammates', {}),
+      toolCallResponse('second-list', 'list_teammates', {}),
       textResponse('done'),
     ])
     ctx.on('agent/pre-step', async ({ agent, step }, next) => {
@@ -380,7 +380,7 @@ describe('dsh-tool-team', () => {
     })
     const childId = spawnedChildId(ctx, lead, spawned)
     await waitNoAgent(ctx, childId)
-    const reminder = '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n'
+    const reminder = '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_teammates({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n'
     const first = serializeRequest(adapter.requests[0]!).messages
     expect(first.at(-1)?.content.slice(0, 2)).toEqual([{ type: 'text', text: reminder }, { type: 'text', text: 'Review the work' }])
     expect(adapter.requests[1]!.messages.filter(message => message.content.some(block =>
@@ -422,7 +422,7 @@ describe('dsh-tool-team', () => {
     expect(spawned.isError, text(spawned)).toBe(false)
     await waitNoAgent(ctx, spawnedChildId(ctx, lead, spawned))
     expect(serializeRequest(adapter.requests[0]!).messages.at(-1)?.content).toEqual([
-      { type: 'text', text: '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n' },
+      { type: 'text', text: '<system-reminder>\nYou are teammate "reviewer".\nYour Team Lead is named "lead".\nUse list_teammates({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>\n\n' },
       { type: 'text', text: 'Review the work' },
     ])
   })
@@ -440,7 +440,7 @@ describe('dsh-tool-team', () => {
       timedOut: false,
       noProgress: {
         reason: 'no-active-peer',
-        message: 'No other Team member is running or provisioning. wait_agent cannot make progress or wake inactive teammates. Re-list with list_agents and team_task_list, then use send_message to wake each required inactive teammate before waiting again.',
+        message: 'No other Team member is running or provisioning. wait_agent observes Agent Teams teammates only: a child created by a delegation tool such as subagent is not a member and never wakes this tool. Re-list with list_teammates and team_task_list, then use send_message to wake each required inactive teammate before waiting again; to wait for a plain subagent, call its delegation tool with run_in_background: false instead.',
       },
     })
     for (const timeout_ms of [9_999, 3_600_001, Number.MAX_SAFE_INTEGER + 1]) {
@@ -474,7 +474,7 @@ describe('dsh-tool-team', () => {
     const childId = spawnedChildId(ctx, lead, spawned)
     const child = await waitRunning(ctx, childId)
 
-    const roster = await execute(ctx, child, 'list_agents', {})
+    const roster = await execute(ctx, child, 'list_teammates', {})
     expect(JSON.parse(text(roster))).toMatchObject([
       { target: 'lead', role: 'lead' },
       { target: 'json-worker', role: 'teammate' },
@@ -715,9 +715,9 @@ describe('dsh-tool-team', () => {
 
   it('fails safely without a calling Agent and has the function-plugin export shape', async () => {
     const { ctx } = await setup([])
-    const result = await execute(ctx, undefined, 'list_agents', {})
+    const result = await execute(ctx, undefined, 'list_teammates', {})
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('unknown tool "list_agents"')
+    expect(text(result)).toContain('unknown tool "list_teammates"')
     expect('default' in toolTeam).toBe(false)
     expect(toolTeam.name).toBe('tool-agent-team')
     expect(toolTeam.inject).toEqual(['agents', 'agentTeams', 'tools', 'systemPrompt'])
